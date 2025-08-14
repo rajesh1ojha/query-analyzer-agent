@@ -9,10 +9,6 @@ GOOGLE_APPLICATION_CREDENTIALS=path/to/your/service-account-key.json
 GOOGLE_CLOUD_PROJECT=your-gcp-project-id
 BIGQUERY_DATASET=your_dataset_name
 
-# Vertex AI Configuration
-VERTEX_AI_LOCATION=us-central1
-VERTEX_AI_PROJECT_ID=your-gcp-project-id
-
 # Application Configuration
 APP_HOST=0.0.0.0
 APP_PORT=8000
@@ -25,3 +21,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # Database Configuration (if using additional database)
 DATABASE_URL=sqlite:///./agentic_app.db
+
+# Agent Configuration
+MAX_AGENT_ITERATIONS=5
+AGENT_TIMEOUT_SECONDS=300
+ENABLE_QUERY_OPTIMIZATION=true
+ENABLE_IMPACT_ANALYSIS=true
+
+# BigQuery Configuration
+BIGQUERY_MAX_RESULTS=10000
+BIGQUERY_TIMEOUT_SECONDS=60

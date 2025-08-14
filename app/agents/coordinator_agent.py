@@ -398,3 +398,4 @@ class CoordinatorAgent(BaseAgent):
                 response_parts.append(f"{i}. {rec.get('description', '')}")
         
         return " ".join(response_parts) if response_parts else "Analysis completed successfully."
+

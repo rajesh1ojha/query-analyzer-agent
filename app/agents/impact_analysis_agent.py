@@ -467,3 +467,4 @@ class ImpactAnalysisAgent(BaseAgent):
             overall_score += impact_scores.get(impact_type, 0.0) * weight
         
         return min(1.0, overall_score)
+

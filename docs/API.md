@@ -552,3 +552,4 @@ const result = await response.json();
 console.log('Response:', result.response);
 console.log('SQL Query:', result.query_result.sql_query);
 ```
+

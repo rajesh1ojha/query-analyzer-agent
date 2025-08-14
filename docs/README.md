@@ -80,10 +80,6 @@ GOOGLE_APPLICATION_CREDENTIALS=path/to/your/service-account-key.json
 GOOGLE_CLOUD_PROJECT=your-gcp-project-id
 BIGQUERY_DATASET=your_dataset_name
 
-# Vertex AI Configuration
-VERTEX_AI_LOCATION=us-central1
-VERTEX_AI_PROJECT_ID=your-gcp-project-id
-
 # Application Configuration
 APP_HOST=0.0.0.0
 APP_PORT=8000

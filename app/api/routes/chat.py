@@ -261,3 +261,4 @@ async def list_sessions():
     except Exception as e:
         logger.error("Failed to list sessions", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to list sessions")
+

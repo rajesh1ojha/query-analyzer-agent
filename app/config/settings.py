@@ -23,10 +23,6 @@ class Settings(BaseSettings):
     bigquery_dataset: str = Field(..., env="BIGQUERY_DATASET")
     google_application_credentials: Optional[str] = Field(None, env="GOOGLE_APPLICATION_CREDENTIALS")
     
-    # Vertex AI Configuration
-    vertex_ai_location: str = Field("us-central1", env="VERTEX_AI_LOCATION")
-    vertex_ai_project_id: str = Field(..., env="VERTEX_AI_PROJECT_ID")
-    
     # Application Configuration
     app_host: str = Field("0.0.0.0", env="APP_HOST")
     app_port: int = Field(8000, env="APP_PORT")

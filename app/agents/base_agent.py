@@ -302,3 +302,4 @@ class BaseAgent(ABC):
             True if successful
         """
         return self.status == AgentStatus.COMPLETED and self.error is None
+

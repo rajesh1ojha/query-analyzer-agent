@@ -279,3 +279,4 @@ class QueryAgent(BaseAgent):
             "error_message": error_message,
             "timestamp": datetime.utcnow().isoformat()
         }
+
