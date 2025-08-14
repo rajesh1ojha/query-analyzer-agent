@@ -1,0 +1,27 @@
+# Azure OpenAI Configuration
+AZURE_OPENAI_API_KEY=your_azure_openai_api_key
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_API_VERSION=2023-12-01-preview
+AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4
+
+# Google Cloud Configuration
+GOOGLE_APPLICATION_CREDENTIALS=path/to/your/service-account-key.json
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
+BIGQUERY_DATASET=your_dataset_name
+
+# Vertex AI Configuration
+VERTEX_AI_LOCATION=us-central1
+VERTEX_AI_PROJECT_ID=your-gcp-project-id
+
+# Application Configuration
+APP_HOST=0.0.0.0
+APP_PORT=8000
+LOG_LEVEL=INFO
+ENVIRONMENT=development
+
+# Security
+SECRET_KEY=your-secret-key-here
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Database Configuration (if using additional database)
+DATABASE_URL=sqlite:///./agentic_app.db
