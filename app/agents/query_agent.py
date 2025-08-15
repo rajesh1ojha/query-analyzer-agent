@@ -9,6 +9,7 @@ from datetime import datetime
 from app.agents.base_agent import BaseAgent
 from app.models.agent import AgentType, AgentResponse
 from app.utils.bigquery_client import BigQueryClient
+from app.utils.azure_openai_client import AzureOpenAIClient
 from app.utils.logger import get_logger
 from app.core.session_manager import session_manager
 
@@ -22,6 +23,7 @@ class QueryAgent(BaseAgent):
         """Initialize query agent."""
         super().__init__(AgentType.QUERY_AGENT, session_id, request_id)
         self.bq_client = BigQueryClient()
+        self.llm_client = AzureOpenAIClient()
         
     async def execute(self, input_data: Dict[str, Any]) -> AgentResponse:
         """
@@ -42,15 +44,15 @@ class QueryAgent(BaseAgent):
                 self.set_error("invalid_input", "No query provided", "MISSING_QUERY")
                 return self.to_response()
             
-            # Step 1: Understand the query
+            # Step 1: Understand the query using LLM
             self.add_step("query_understanding", "nlp_analysis")
             query_analysis = await self._analyze_query(user_query, context)
             self.update_step("query_understanding", "success", output=query_analysis)
             
             # Step 2: Get schema information if needed
-            if query_analysis.get("needs_schema"):
+            if query_analysis.get("entities") or query_analysis.get("needs_schema", True):
                 self.add_step("schema_retrieval", "schema_lookup")
-                schema_info = await self._get_schema_info(query_analysis.get("tables", []))
+                schema_info = await self._get_schema_info(query_analysis.get("entities", []))
                 self.update_step("schema_retrieval", "success", output=schema_info)
                 
                 # Update session with schema info
@@ -58,7 +60,7 @@ class QueryAgent(BaseAgent):
             else:
                 schema_info = session_manager.get_session(self.session_id).schema_info
             
-            # Step 3: Generate SQL query
+            # Step 3: Generate SQL query using LLM
             self.add_step("sql_generation", "nlp_to_sql")
             sql_query = await self._generate_sql(user_query, query_analysis, schema_info, context)
             self.update_step("sql_generation", "success", output={"sql_query": sql_query})
@@ -83,7 +85,7 @@ class QueryAgent(BaseAgent):
                 return self.to_response()
             self.update_step("query_execution", "success", output=query_result)
             
-            # Step 6: Format results
+            # Step 6: Format results using LLM
             self.add_step("result_formatting", "data_formatting")
             formatted_result = await self._format_results(query_result, user_query, context)
             self.update_step("result_formatting", "success", output=formatted_result)
@@ -106,7 +108,7 @@ class QueryAgent(BaseAgent):
     
     async def _analyze_query(self, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Analyze the user query to understand intent and requirements.
+        Analyze the user query to understand intent and requirements using LLM.
         
         Args:
             query: User's natural language query
@@ -115,63 +117,63 @@ class QueryAgent(BaseAgent):
         Returns:
             Query analysis
         """
-        # Simple keyword-based analysis (in a real implementation, this would use NLP)
-        analysis = {
-            "intent": "data_retrieval",
-            "tables": [],
-            "needs_schema": True,
-            "complexity": "simple",
-            "estimated_cost": "low"
-        }
+        # Use LLM for advanced query analysis - no fallback to hardcoded patterns
+        analysis = await self.llm_client.analyze_query_intent(query, context)
         
-        # Extract potential table names (simple heuristic)
-        table_keywords = ["sales", "customers", "orders", "products", "revenue", "transactions"]
-        found_tables = []
-        
-        for keyword in table_keywords:
-            if keyword.lower() in query.lower():
-                found_tables.append(keyword)
-        
-        analysis["tables"] = found_tables
-        analysis["needs_schema"] = len(found_tables) > 0
-        
-        # Determine complexity
-        if any(word in query.lower() for word in ["join", "group by", "having", "subquery"]):
-            analysis["complexity"] = "complex"
-        elif any(word in query.lower() for word in ["sum", "count", "average", "max", "min"]):
-            analysis["complexity"] = "moderate"
+        # Add additional metadata
+        analysis["needs_schema"] = len(analysis.get("entities", [])) > 0
+        analysis["timestamp"] = datetime.utcnow().isoformat()
         
         return analysis
     
     async def _get_schema_info(self, table_names: List[str]) -> Dict[str, Any]:
         """
-        Get schema information for specified tables.
+        Get comprehensive schema information for specified tables using INFORMATION_SCHEMA.
         
         Args:
             table_names: List of table names
             
         Returns:
-            Schema information
+            Comprehensive schema information
         """
-        schema_info = {
-            "tables": {},
-            "available_tables": self.bq_client.list_tables()
-        }
-        
-        for table_name in table_names:
-            try:
-                table_schema = self.bq_client.get_schema_info(table_name)
-                if "error" not in table_schema:
-                    schema_info["tables"][table_name] = table_schema
-            except Exception as e:
-                logger.warning(f"Failed to get schema for table {table_name}", error=str(e))
-        
-        return schema_info
+        try:
+            # Get comprehensive schema info from INFORMATION_SCHEMA
+            schema_info = self.bq_client.get_comprehensive_schema_info(table_names)
+            
+            if "error" in schema_info:
+                logger.warning("Failed to get comprehensive schema, falling back to basic schema", error=schema_info["error"])
+                # Fallback to basic schema info
+                schema_info = {
+                    "tables": {},
+                    "available_tables": self.bq_client.list_tables()
+                }
+                
+                for table_name in table_names:
+                    try:
+                        table_schema = self.bq_client._get_basic_schema_info(table_name)
+                        if "error" not in table_schema:
+                            schema_info["tables"][table_name] = table_schema
+                    except Exception as e:
+                        logger.warning(f"Failed to get basic schema for table {table_name}", error=str(e))
+            
+            # Add available tables list if not present
+            if "available_tables" not in schema_info:
+                schema_info["available_tables"] = self.bq_client.list_tables()
+            
+            return schema_info
+            
+        except Exception as e:
+            logger.error("Schema retrieval failed", error=str(e))
+            return {
+                "tables": {},
+                "available_tables": self.bq_client.list_tables(),
+                "error": str(e)
+            }
     
     async def _generate_sql(self, query: str, analysis: Dict[str, Any], 
                            schema_info: Optional[Dict[str, Any]], context: Dict[str, Any]) -> str:
         """
-        Generate SQL query from natural language.
+        Generate SQL query from natural language using LLM.
         
         Args:
             query: Natural language query
@@ -182,28 +184,14 @@ class QueryAgent(BaseAgent):
         Returns:
             Generated SQL query
         """
-        # This is a simplified implementation
-        # In a real system, this would use a language model like GPT-4
-        
-        query_lower = query.lower()
-        
-        # Simple pattern matching for common queries
-        if "total" in query_lower and "revenue" in query_lower:
-            return "SELECT SUM(revenue) as total_revenue FROM sales"
-        elif "count" in query_lower and "customers" in query_lower:
-            return "SELECT COUNT(*) as customer_count FROM customers"
-        elif "average" in query_lower and "order" in query_lower:
-            return "SELECT AVG(order_value) as average_order_value FROM orders"
-        elif "top" in query_lower and "sales" in query_lower:
-            return "SELECT product_name, SUM(quantity) as total_sold FROM sales GROUP BY product_name ORDER BY total_sold DESC LIMIT 10"
-        else:
-            # Default fallback query
-            return "SELECT * FROM sales LIMIT 10"
+        # Use LLM for SQL generation - no fallback to hardcoded patterns
+        sql_query = await self.llm_client.generate_sql_query(query, schema_info or {}, analysis)
+        return sql_query
     
     async def _format_results(self, query_result: Dict[str, Any], original_query: str, 
                              context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Format query results for user consumption.
+        Format query results for user consumption using LLM.
         
         Args:
             query_result: Raw query results
@@ -222,11 +210,9 @@ class QueryAgent(BaseAgent):
                 "insights": []
             }
         
-        # Generate summary
-        summary = self._generate_summary(data, original_query)
-        
-        # Extract insights
-        insights = self._extract_insights(data, original_query)
+        # Use LLM for summary and insights generation - no fallback
+        summary = await self.llm_client.generate_summary(query_result, original_query)
+        insights = await self.llm_client.generate_insights(query_result, original_query)
         
         return {
             "summary": summary,
@@ -236,44 +222,8 @@ class QueryAgent(BaseAgent):
             "execution_time_ms": query_result.get("execution_time_ms")
         }
     
-    def _generate_summary(self, data: List[Dict[str, Any]], query: str) -> str:
-        """Generate a natural language summary of the results."""
-        if not data:
-            return "No data found for your query."
-        
-        # Simple summary generation
-        if len(data) == 1:
-            row = data[0]
-            if "total_revenue" in row:
-                return f"The total revenue is ${row['total_revenue']:,.2f}"
-            elif "customer_count" in row:
-                return f"There are {row['customer_count']} customers"
-            elif "average_order_value" in row:
-                return f"The average order value is ${row['average_order_value']:,.2f}"
-        
-        return f"Found {len(data)} results for your query."
-    
-    def _extract_insights(self, data: List[Dict[str, Any]], query: str) -> List[str]:
-        """Extract insights from the data."""
-        insights = []
-        
-        if not data:
-            return insights
-        
-        # Simple insight extraction
-        if len(data) > 1:
-            insights.append(f"Query returned {len(data)} records")
-        
-        # Look for patterns in the data
-        for row in data[:5]:  # Analyze first 5 rows
-            for key, value in row.items():
-                if isinstance(value, (int, float)) and value > 1000:
-                    insights.append(f"High value found in {key}: {value}")
-        
-        return insights
-    
     def _create_error(self, error_type: str, error_message: str) -> Dict[str, Any]:
-        """Create an error object for step tracking."""
+        """Create error object for agent steps."""
         return {
             "error_type": error_type,
             "error_message": error_message,

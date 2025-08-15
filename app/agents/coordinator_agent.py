@@ -210,7 +210,7 @@ class CoordinatorAgent(BaseAgent):
     
     async def _execute_impact_analysis_agent(self, query_result: Dict[str, Any], context: Dict[str, Any]) -> Optional[AgentResponse]:
         """
-        Execute the impact analysis agent.
+        Execute the impact analysis agent with enhanced schema context.
         
         Args:
             query_result: Results from query agent
@@ -221,11 +221,17 @@ class CoordinatorAgent(BaseAgent):
         """
         try:
             impact_agent = ImpactAnalysisAgent(self.session_id, self.request_id)
+            
+            # Enhance context with schema information if available
+            enhanced_context = context.copy()
+            if "schema_info" in context:
+                enhanced_context["schema_info"] = context["schema_info"]
+            
             input_data = {
-                "query_results": query_result.get("formatted_result", {}),
+                "query_result": query_result.get("query_result", {}),
                 "original_query": query_result.get("original_query", ""),
                 "sql_query": query_result.get("sql_query", ""),
-                "context": context
+                "context": enhanced_context
             }
             
             return await impact_agent.run_with_timeout(input_data)
